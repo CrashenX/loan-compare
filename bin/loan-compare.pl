@@ -4,34 +4,39 @@ use strict;
 use lib "../lib/";
 use Finance::Amortization;
 
-print "hello world\n";
+my $compounding = 12;
+my $years = 19;
+my $periods = $compounding * $years;
 
-my $amortization = new Finance::Amortization(
+my $am1 = new Finance::Amortization(
     principal => 165000,
     rate => 0.04,
+    tax_rate => 0.28,
     periods => 360,
-    compounding => 12,
+    compounding => $compounding,
     precision => 2
 );
 
-my $period = 1;
+for(my $i = 0; $i < $period; ++$i) {
 
-my $principal = $amortization->principal();
-my $rate = $amortization->rate();
-my $balance = $amortization->balance($period);
-my $balance_old = $amortization->balance_old($period);
-my $interest = $amortization->interest($period);
-my $interest_old = $amortization->interest_old($period);
-my $total_interest = $amortization->total_interest($period);
-my $periods = $amortization->periods();
-my $payment = $amortization->payment();
+}
 
-print "Payment: $payment\n";
-print "Periods: $periods\n";
-print "Principal: $principal\n";
-print "Rate: $rate\n";
-print "Interest Paid: $interest_old $interest\n";
-print "Total Interest Paid: $total_interest\n";
-print "Balance: $balance_old $balance\n";
+#my $principal = $amortization->principal();
+#my $rate = $amortization->rate();
+#my $balance = $amortization->balance($periods);
+#my $balance_old = $amortization->balance_old($periods);
+#my $interest = $amortization->interest($periods);
+#my $interest_old = $amortization->interest_old($periods);
+#my $total_interest = $amortization->total_interest($periods);
+#my $periods = $amortization->periods();
+#my $payment = $amortization->payment();
+#
+#print "Payment: $payment\n";
+#print "Periods: $periods\n";
+#print "Principal: $principal\n";
+#print "Rate: $rate\n";
+#print "Interest Paid: $interest_old $interest\n";
+#print "Total Interest Paid: $total_interest\n";
+#print "Balance: $balance_old $balance\n";
 
-#$amortization->print_schedule();
+$amortization->print_schedule();

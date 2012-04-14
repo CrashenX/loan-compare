@@ -18,6 +18,7 @@ use Finance::Amortization
 $amortization = new Finance::Amortization(
     principal => 100000,
     rate => 0.06,
+    tax_rate => 0.28,
     periods => 360
 );
 
@@ -45,12 +46,12 @@ methods called on an amortization object.  (Except for new(), of course.)
 
 =head2 new()
 
-$am = Finance::Amortization->new(principal => 0, rate => 0, periods => 0,
-    compounding => 12, precision => 2);
+$am = Finance::Amortization->new(principal => 0, rate => 0, tax_rate => 0,
+    periods => 0, compounding => 12, precision => 2);
 
-Creates a new amortization object.  Calling interface is hash style.
-The fields principal, rate, and periods are available, all defaulting
-to zero.
+Creates a new amortization object.  Calling interface is hash style.  The
+fields principal, rate, tax_rate, and periods are available, all defaulting to
+zero.
 
 Compounding is a parameter which sets how many periods the rate is compounded
 over.  Thus, if each amortization period is one month, setting compounding
@@ -66,6 +67,11 @@ precision is used to specify the number of decimal places to round to
 when returning answers.  It defaults to 2, which is appropriate for
 US currency and many others.
 
+tax_rate is your marginal tax rate. It is used to calculate how much you will
+save from tax deductions on interest. Assumes you are itemizing your deductions
+and is only useful for comparing loans. This is because the tax benefit of
+mortgage interest is only realized for amounts over your standard deduction.
+
 =cut
 
 sub new {
@@ -74,6 +80,7 @@ sub new {
     my %conf = (
         principal => 0.00,
         rate => 0.00,
+        tax_rate => 0.00,
         compounding => 12,
         precision => 2, # how many decimals to round
         @_
@@ -101,6 +108,19 @@ returns the interest rate per period.  Ignores any arguments.
 sub rate {
     my $am = shift;
     return $am->{'rate'};
+}
+
+=head2 tax_rate()
+
+$tax_rate = $am->tax_rate()
+
+returns the marginal tax rate.  Ignores any arguments.
+
+=cut
+
+sub tax_rate {
+    my $am = shift;
+    return $am->{'tax_rate'};
 }
 
 =head2 principal()
@@ -171,18 +191,30 @@ Prints the full amortization schedule.
 sub print_schedule {
     my $am = shift;
 
-    my $schedule = $am->get_schedule();
+    my $schedule = $am->schedule();
     my $count = 0;
 
+    printf("%6s\t", 'Period');
+    printf("%9s  ", 'Payment');
+    printf("%9s  ", 'Principal');
+    printf("%9s  ", 'Tax Sav*');
+    printf("%9s  ", 'Interest');
+    printf("%9s  ", 'Total Int');
+    printf("%9s\n", 'Balance');
     for my $entry (@$schedule) {
         my $payment = $entry->{'principal'} + $entry->{'interest'};
-        printf("%3d\t", ++$count);
-        printf("%7.*f  ", $am->{'precision'}, $payment);
-        printf("%7.*f  ", $am->{'precision'}, "$entry->{'principal'}");
-        printf("%7.*f  ", $am->{'precision'}, "$entry->{'interest'}");
+        printf("%6d\t", ++$count);
+        printf("%9.*f  ", $am->{'precision'}, $payment);
+        printf("%9.*f  ", $am->{'precision'}, "$entry->{'principal'}");
+        printf("%9.*f  ", $am->{'precision'}, "$entry->{'tax_savings'}");
+        printf("%9.*f  ", $am->{'precision'}, "$entry->{'interest'}");
         printf("%9.*f  ", $am->{'precision'}, "$entry->{'total_interest'}");
         printf("%9.*f\n", $am->{'precision'}, "$entry->{'balance'}");
     }
+    print("\n* Actual tax savings depend on itemized deductions. "
+        . "Numbers are only for\n"
+        . "  comparison purposes.\n"
+    );
 }
 
 =head2 schedule
@@ -201,6 +233,7 @@ sub schedule {
     }
 
     my $rate = $am->rate;
+    my $tax_rate = $am->tax_rate;
     my $periods = $am->periods();
     my $principal = $am->principal;
     my $payment = $am->payment;
@@ -213,8 +246,9 @@ sub schedule {
         my $entry = {};
         $entry->{'interest'} = $rate * $balance;
         $interest += $entry->{'interest'};
-
         $entry->{'total_interest'} = $interest;
+
+        $entry->{'tax_savings'} = $entry->{'interest'} * $tax_rate;
 
         $entry->{'principal'} = $payment - $entry->{'interest'};
 
