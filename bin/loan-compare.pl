@@ -29,7 +29,8 @@ my $am1 = new Finance::Amortization(
 my $schedule = $am1->schedule();
 my $payments = @$schedule;
 my $invest   = $initial_investment;
-for(my $period = 0; $period < $periods; ++$period) {
+my $period   = 0;
+for($period = 0; $period < $periods; ++$period) {
     my $subtract = 0;
 
     if($period < $payments) {
@@ -44,9 +45,18 @@ for(my $period = 0; $period < $periods; ++$period) {
     $invest *= ($earn_rate+1);
     $invest += $allot;
     $invest -= $subtract;
+
 }
 
-printf("Future Value: %.*f\n", $am1->{'precision'}, $invest);
+
+if($period <= $payments) {
+    my $balance = $schedule->[$period-1]->{'balance'};
+    printf("Future Value: %10.*f\n", $am1->{'precision'}, $invest);
+    $invest -= $balance;
+    printf("Loan Balance: %10.*f\n", $am1->{'precision'}, $balance);
+}
+
+printf("Adjusted  FV: %10.*f\n", $am1->{'precision'}, $invest);
 
 #my $principal = $amortization->principal();
 #my $rate = $amortization->rate();
@@ -66,4 +76,4 @@ printf("Future Value: %.*f\n", $am1->{'precision'}, $invest);
 #print "Total Interest Paid: $total_interest\n";
 #print "Balance: $balance_old $balance\n";
 
-#$amortization->print_schedule();
+$am1->print_schedule();
