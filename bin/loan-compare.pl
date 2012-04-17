@@ -6,30 +6,45 @@ use lib "../lib/";
 use Finance::Amortization;
 
 my $options = GetOptions (
-    "t|tax"    => \(my $use_tax=0),
-    "h|help"   => \(my $help=0)
+    "t|tax"          => \(my $use_tax=0),
+    "f|roll-fees-in" => \(my $fees_in=0),
+    "h|help"         => \(my $help=0)
 );
 
 my $compounding = 12;
-my $years = 19;
-my $periods = $compounding * $years;
-my $earn_rate = 0.07 / $compounding;
-my $initial_investment = 0;
-my $allot = 3000;
 
-my $am1 = new Finance::Amortization(
-    principal => 165000,
-    rate => 0.04,
+my $amount = 170000;
+my $percent_down = 5;
+my $allot = 2487.60;
+my $init_allot = 8500;
+my $fees = 2826.25;
+my $earn_rate = 0.07 / $compounding;
+my $years = 19;
+
+my $cash2table = $amount * $percent_down/100;
+my $periods = $compounding * $years;
+
+$amount *= (1 - $percent_down/100);
+($fees_in) ? ($amount += $fees) : ($cash2table += $fees);
+$init_allot -= $cash2table;
+
+die("Insufficient initial funds") if(0 > $init_allot);
+
+my $invest = $init_allot;
+
+my $am = new Finance::Amortization(
+    principal => $amount,
+    rate => 0.0375,
     tax_rate => 0.28,
     periods => 360,
     compounding => $compounding,
     precision => 2
 );
 
-my $schedule = $am1->schedule();
+my $schedule = $am->schedule();
 my $payments = @$schedule;
-my $invest   = $initial_investment;
 my $period   = 0;
+
 for($period = 0; $period < $periods; ++$period) {
     my $subtract = 0;
 
@@ -48,32 +63,18 @@ for($period = 0; $period < $periods; ++$period) {
 
 }
 
+printf("Loan  Amount: %10.*f\n", $am->{'precision'},       $amount);
+printf("Percent Down: %10.*f\n", $am->{'precision'}, $percent_down);
+printf("Cash 2 Table: %10.*f\n", $am->{'precision'},   $cash2table);
+printf("Finance Fees: %10.*f\n", $am->{'precision'},         $fees);
+printf("Start  Value: %10.*f\n", $am->{'precision'},   $init_allot);
 
+my $balance = $schedule->[$period-1]->{'balance'};
+printf("Future Value: %10.*f\n", $am->{'precision'},       $invest);
+printf("Loan Balance: %10.*f\n", $am->{'precision'},      $balance);
 if($period <= $payments) {
-    my $balance = $schedule->[$period-1]->{'balance'};
-    printf("Future Value: %10.*f\n", $am1->{'precision'}, $invest);
     $invest -= $balance;
-    printf("Loan Balance: %10.*f\n", $am1->{'precision'}, $balance);
 }
+printf("Adjusted  FV: %10.*f\n", $am->{'precision'},       $invest);
 
-printf("Adjusted  FV: %10.*f\n", $am1->{'precision'}, $invest);
-
-#my $principal = $amortization->principal();
-#my $rate = $amortization->rate();
-#my $balance = $amortization->balance($periods);
-#my $balance_old = $amortization->balance_old($periods);
-#my $interest = $amortization->interest($periods);
-#my $interest_old = $amortization->interest_old($periods);
-#my $total_interest = $amortization->total_interest($periods);
-#my $periods = $amortization->periods();
-#my $payment = $amortization->payment();
-#
-#print "Payment: $payment\n";
-#print "Periods: $periods\n";
-#print "Principal: $principal\n";
-#print "Rate: $rate\n";
-#print "Interest Paid: $interest_old $interest\n";
-#print "Total Interest Paid: $total_interest\n";
-#print "Balance: $balance_old $balance\n";
-
-$am1->print_schedule();
+#$am->print_schedule();
