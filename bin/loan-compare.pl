@@ -2,79 +2,148 @@
 use warnings FATAL => 'all';
 use strict;
 use Getopt::Long;
+use File::Slurp;
 use lib "../lib/";
 use Finance::Amortization;
 
+my $COMPOUNDING = 12;
+
 my $options = GetOptions (
     "t|tax"          => \(my $use_tax=0),
-    "f|roll-fees-in" => \(my $fees_in=0),
+    "r|roll-fees-in" => \(my $fees_in=0),
+    "f|file=s"       => \(my $file="loans.txt"),
     "h|help"         => \(my $help=0)
 );
 
-my $compounding = 12;
+sub parse_file() {
+    my $fees_in = shift;
+    my $scenarios = ();
 
-my $amount = 170000;
-my $percent_down = 5;
-my $allot = 2487.60;
-my $init_allot = 8500;
-my $fees = 2826.25;
-my $earn_rate = 0.07 / $compounding;
-my $years = 19;
+    my @lines = read_file($file);
+    for my $line (@lines) {
+        chomp($line);
+        next if(substr($line,0,1) eq "#");
+        if($line !~ m/[^|]+|([0-9.]+|){7}[0-9]+|[0-9]+$/) {
+            printf("Invalid input line (%s); skipping\n", $line);
+            next;
+        }
 
-my $cash2table = $amount * $percent_down/100;
-my $periods = $compounding * $years;
+        my ($n,$l,$i,$a,$f,$d,$r,$e,$t,$m) = split(/\|/,$line);
+        my $s = {
+            name          => $n,
+            loan_amount   => $l * (1 - $d/100),
+            init_allot    => $i,
+            allot         => $a,
+            fees          => $f,
+            loan_rate     => $r/100,
+            earn_rate     => $e/100 / $COMPOUNDING,
+            cash2table    => $l * $d/100,
+            loan_term     => $t,
+            periods       => $m
+        };
 
-$amount *= (1 - $percent_down/100);
-($fees_in) ? ($amount += $fees) : ($cash2table += $fees);
-$init_allot -= $cash2table;
+        $s->{'init_allot'} -= $s->{'cash2table'};
+        if($fees_in) {
+            $s->{'loan_amount'} += $f;
+        }
+        else {
+            $s->{'cash2table'} += $f;
+        }
 
-die("Insufficient initial funds") if(0 > $init_allot);
+        if(0 > $s->{'init_allot'}) {
+            printf("Insufficient initial funds for '%s'; skipping\n",
+                $s->{'name'});
+            next;
+        }
+        push(@$scenarios, $s);
+    }
+    return $scenarios;
+}
 
-my $invest = $init_allot;
 
-my $am = new Finance::Amortization(
-    principal => $amount,
-    rate => 0.0375,
-    tax_rate => 0.28,
-    periods => 360,
-    compounding => $compounding,
-    precision => 2
-);
+sub calculate_fv() {
+    my $fv        = shift;
+    my $periods   = shift;
+    my $rate      = shift;
+    my $allot     = shift;
+    my $precision = shift;
+    my $schedule     = shift;
+    my $payments  = @$schedule;
+    my $period    = 0;
 
-my $schedule = $am->schedule();
-my $payments = @$schedule;
-my $period   = 0;
+    for($period = 0; $period < $periods; ++$period) {
+        my $subtract = 0;
+        my $sp = $schedule->[$period];
 
-for($period = 0; $period < $periods; ++$period) {
-    my $subtract = 0;
+        if($period < $payments) {
+            my $p = $sp->{'principal'};
+            my $i = $sp->{'interest'};
+            my $t = ($use_tax) ? $sp->{'tax_savings'} : 0;
 
-    if($period < $payments) {
-        my $p = $schedule->[$period]->{'principal'};
-        my $i = $schedule->[$period]->{'interest'};
-        my $t = ($use_tax) ? $schedule->[$period]->{'tax_savings'} : 0;
+            $subtract += ($p + $i - $t);
+            die() if(0 > $subtract);
+        }
 
-        $subtract += ($p + $i - $t);
-        die() if(0 > $subtract);
+        $fv *= ($rate + 1);
+        $fv += $allot;
+        $fv -= $subtract;
     }
 
-    $invest *= ($earn_rate+1);
-    $invest += $allot;
-    $invest -= $subtract;
+        my $balance = $schedule->[$period-1]->{'balance'};
+        printf("Future Value: %10.*f\n", $precision, $fv);
+        printf("Loan Balance: %10.*f\n", $precision, $balance);
+        if($period <= $payments) {
+            $fv -= $balance;
+        }
+
+    return $fv;
+}
+
+sub main() {
+    my $scenarios = &parse_file($fees_in);
+
+    if(1 > @$scenarios) {
+        print("No valid loan scenarios to compare; exiting\n");
+        exit 1;
+    }
+
+    for my $s (@$scenarios) {
+        my $am = new Finance::Amortization(
+            principal => $s->{'loan_amount'},
+            rate => $s->{'loan_rate'},
+            tax_rate => 0.28,
+            periods => $s->{'loan_term'},
+            compounding => $COMPOUNDING,
+            precision => 2
+        );
+        my $schedule = $am->schedule();
+
+        my $p = $am->{'precision'};
+
+        printf("%s\n------------------------\n", $s->{'name'});
+        my $fv = &calculate_fv($s->{'init_allot'},
+                               $s->{'periods'},
+                               $s->{'earn_rate'},
+                               $s->{'allot'},
+                               $p,
+                               $schedule);
+
+        printf("Loan  Amount: %10.*f\n", $p, $s->{'loan_amount'});
+        printf("Cash 2 Table: %10.*f\n", $p, $s->{'cash2table'});
+        printf("Finance Fees: %10.*f\n", $p, $s->{'fees'});
+        printf("Start  Value: %10.*f\n", $p, $s->{'init_allot'});
+        printf("Adjusted  FV: %10.*f\n", $p, $fv);
+        printf("\n");
+
+    }
 
 }
 
-printf("Loan  Amount: %10.*f\n", $am->{'precision'},       $amount);
-printf("Percent Down: %10.*f\n", $am->{'precision'}, $percent_down);
-printf("Cash 2 Table: %10.*f\n", $am->{'precision'},   $cash2table);
-printf("Finance Fees: %10.*f\n", $am->{'precision'},         $fees);
-printf("Start  Value: %10.*f\n", $am->{'precision'},   $init_allot);
+# $am->print_schedule();
 
-my $balance = $schedule->[$period-1]->{'balance'};
-printf("Future Value: %10.*f\n", $am->{'precision'},       $invest);
-printf("Loan Balance: %10.*f\n", $am->{'precision'},      $balance);
-if($period <= $payments) {
-    $invest -= $balance;
-}
-printf("Adjusted  FV: %10.*f\n", $am->{'precision'},       $invest);
 
-#$am->print_schedule();
+
+&main();
+
+
+
