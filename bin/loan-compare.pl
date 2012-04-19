@@ -15,7 +15,8 @@ my $options = GetOptions (
     "h|help"         => \(my $help=0)
 );
 
-sub parse_file() {
+sub parse_file()
+{
     my $fees_in = shift;
     my $scenarios = ();
 
@@ -61,13 +62,14 @@ sub parse_file() {
 }
 
 
-sub calculate_fv() {
+sub calculate_fv()
+{
     my $fv        = shift;
     my $periods   = shift;
     my $rate      = shift;
     my $allot     = shift;
     my $precision = shift;
-    my $schedule     = shift;
+    my $schedule  = shift;
     my $payments  = @$schedule;
     my $period    = 0;
 
@@ -89,17 +91,32 @@ sub calculate_fv() {
         $fv -= $subtract;
     }
 
-        my $balance = $schedule->[$period-1]->{'balance'};
-        printf("Future Value: %10.*f\n", $precision, $fv);
-        printf("Loan Balance: %10.*f\n", $precision, $balance);
-        if($period <= $payments) {
-            $fv -= $balance;
-        }
-
     return $fv;
 }
 
-sub main() {
+sub print_results()
+{
+    my $scenario  = shift;
+    my $fv        = shift;
+    my $balance   = shift;
+    my $precision = shift;
+
+    #$am->print_schedule();
+
+    printf("%s\n------------------------\n", $scenario->{'name'});
+    printf("Loan  Amount: %10.*f\n", $precision, $scenario->{'loan_amount'});
+    printf("Cash 2 Table: %10.*f\n", $precision, $scenario->{'cash2table'});
+    printf("Finance Fees: %10.*f\n", $precision, $scenario->{'fees'});
+    printf("Start  Value: %10.*f\n", $precision, $scenario->{'init_allot'});
+    printf("Future Value: %10.*f\n", $precision, $fv);
+    printf("Loan Balance: %10.*f\n", $precision, $balance);
+    $fv -= $balance;
+    printf("Adjusted  FV: %10.*f\n", $precision, $fv);
+    printf("\n");
+}
+
+sub main()
+{
     my $scenarios = &parse_file($fees_in);
 
     if(1 > @$scenarios) {
@@ -116,34 +133,23 @@ sub main() {
             compounding => $COMPOUNDING,
             precision => 2
         );
-        my $schedule = $am->schedule();
 
-        my $p = $am->{'precision'};
+        my $schedule  = $am->schedule();
+        my $precision = $am->{'precision'};
+        my $periods   = $s->{'periods'};
+        my $balance   = $periods <= @$schedule ?
+                                        $schedule->[$periods-1]->{'balance'} :
+                                        0;
 
-        printf("%s\n------------------------\n", $s->{'name'});
         my $fv = &calculate_fv($s->{'init_allot'},
-                               $s->{'periods'},
+                               $periods,
                                $s->{'earn_rate'},
                                $s->{'allot'},
-                               $p,
+                               $precision,
                                $schedule);
 
-        printf("Loan  Amount: %10.*f\n", $p, $s->{'loan_amount'});
-        printf("Cash 2 Table: %10.*f\n", $p, $s->{'cash2table'});
-        printf("Finance Fees: %10.*f\n", $p, $s->{'fees'});
-        printf("Start  Value: %10.*f\n", $p, $s->{'init_allot'});
-        printf("Adjusted  FV: %10.*f\n", $p, $fv);
-        printf("\n");
-
+        &print_results($s, $fv, $balance, $precision);
     }
-
 }
 
-# $am->print_schedule();
-
-
-
 &main();
-
-
-
