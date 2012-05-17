@@ -25,7 +25,7 @@ sub parse_file()
         chomp($line);
         next if(substr($line,0,1) eq "#");
         if($line !~ m/[^|]+|([0-9.]+|){7}[0-9]+|[0-9]+$/) {
-            printf("Invalid input line (%s); skipping\n", $line);
+            printf("Invalid input line ('%s'); skipping\n", $line);
             next;
         }
 
