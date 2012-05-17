@@ -43,13 +43,13 @@ sub parse_file()
             periods       => $m
         };
 
-        $s->{'init_allot'} -= $s->{'cash2table'};
         if($fees_in) {
             $s->{'loan_amount'} += $f;
         }
         else {
             $s->{'cash2table'} += $f;
         }
+        $s->{'init_allot'} -= $s->{'cash2table'};
 
         if(0 > $s->{'init_allot'}) {
             printf("Insufficient initial funds for '%s'; skipping\n",
